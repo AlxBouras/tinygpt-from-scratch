@@ -4,14 +4,14 @@ from torch.nn import functional as F
 
 # hyperparameters
 batch_size = 64 # number ofindependent sequences processed in parallel
-block_size = 256 # maximum context length for predictions
+block_size = 256 # maximum context (characters) length for predictions
 max_iters = 5000
 eval_interval = 500
-learning_rate = 3e-4
+learning_rate = 3e-4 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
 n_embd = 384
-n_head = 6
+n_head = 6 # every head has 384/6 = 64 dimensions (head size)
 n_layer = 6
 dropout = 0.2
 
@@ -87,7 +87,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(head_size * num_heads, n_embd)
+        self.proj = nn.Linear(head_size * num_heads, n_embd) # project the concatenated heads back to the embedding dimension
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -95,8 +95,40 @@ class MultiHeadAttention(nn.Module):
         out = self.dropout(self.proj(out))
         return out
 
+class FeedFoward(nn.Module):
+    """ a simple linear layer followed by a non-linearity """
+
+    def __init__(self, n_embd):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embd, 4 * n_embd), # linear layer to project the input to 4 times the embedding dimension
+            nn.ReLU(),
+            nn.Linear(4 * n_embd, n_embd), # linear layer to project the input back to the embedding dimension
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        return self.net(x)
 
 
+class Block(nn.Module):
+    """ Transformer block: communication followed by computation """
+
+    def __init__(self, n_embd, n_head):
+        # n_embd: embedding dimension
+        # n_head: the number of heads
+        super().__init__()
+        head_size = n_embd // n_head
+        self.sa = MultiHeadAttention(n_head, head_size)
+        self.ffwd = FeedFoward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+
+    def forward(self, x):
+        # pre-norm formulation of the transformer block
+        x = x + self.sa(self.ln1(x)) # skip connection between the input and the output of the self-attention layer (communication)
+        x = x + self.ffwd(self.ln2(x)) # skip connection between the input and the output of the feedforward layer (computation)
+        return x
 
 # -----------------------------------------------------------------------------
 if __name__ == '__main__':
