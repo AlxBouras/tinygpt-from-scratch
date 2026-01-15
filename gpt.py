@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from tqdm import tqdm
 
 # hyperparameters
 batch_size = 64 # number ofindependent sequences processed in parallel
@@ -12,7 +13,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
 n_embd = 384
 n_head = 6 # every head has 384/6 = 64 dimensions (head size)
-n_layer = 6
+n_layer = 6 # number of transformer blocks
 dropout = 0.2
 
 # -----------------------------------------------------------------------------
@@ -25,8 +26,8 @@ vocab_size = len(chars)
 # create a mapping from characters to integers (a basic tokenizer)
 stoi = { ch:i for i,ch in enumerate(chars) }
 itos = { i:ch for i,ch in enumerate(chars) }
-encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
-decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
+encode = lambda s: [stoi[c] for c in s] # encoder: string -> list of integers
+decode = lambda l: ''.join([itos[i] for i in l]) # decoder: list of integers -> string
 
 # -----------------------------------------------------------------------------
 # Train and test splits
@@ -209,7 +210,7 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    for epoch in range(max_epochs):
+    for epoch in tqdm(range(max_epochs), desc="Epochs"):
         # every once in a while evaluate the loss on train and val sets
         if epoch % eval_interval == 0 or epoch == max_epochs - 1:
             losses = estimate_loss()
